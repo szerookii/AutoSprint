@@ -1,9 +1,5 @@
 #include "pch.h"
 #include <vector>
-#include<iostream>
-#include<inttypes.h>
-#include <stdint.h>
-#include<string>
 
 uintptr_t FindDMAAddy(uintptr_t ptr, std::vector<unsigned int> offsets)
 {
