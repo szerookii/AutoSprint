@@ -90,8 +90,8 @@ void Inject(HINSTANCE hModule) {
     if (!sigAddr)
         return;
 
-	int offset = *reinterpret_cast<int*>(sigAddr + 3);
-	uintptr_t** gamemodeVtable = reinterpret_cast<uintptr_t**>(sigAddr + offset + 7);
+	int offset = *(int*)(sigAddr + 3);
+	uintptr_t** gamemodeVtable = (uintptr_t**)(sigAddr + offset + 7);
 
     if (MH_CreateHook((void*)gamemodeVtable[10], &hGameMode_tick, (LPVOID*)&oGameMode_tick) == MH_OK) {
         MH_EnableHook((void*)gamemodeVtable[10]);
