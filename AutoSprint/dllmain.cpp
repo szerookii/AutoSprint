@@ -1,24 +1,100 @@
 #include "pch.h"
+
+#include <Windows.h>
+#include <Psapi.h>
+#include <cassert>
 #include <vector>
 
-uintptr_t FindDMAAddy(uintptr_t ptr, std::vector<unsigned int> offsets)
-{
-    uintptr_t addr = ptr;
-    for (unsigned int i = 0; i < offsets.size(); ++i)
-    {
-        addr = *(uintptr_t*)addr;
-        addr += offsets[i];
-    }
-    return addr;
+#include "lib/MinHook.h"
+
+#define INRANGE(x,a,b)   (x >= a && x <= b)
+#define GET_BYTE( x )    (GET_BITS(x[0]) << 4 | GET_BITS(x[1]))
+#define GET_BITS( x )    (INRANGE((x&(~0x20)),'A','F') ? ((x&(~0x20)) - 'A' + 0xa) : (INRANGE(x,'0','9') ? x - '0' : 0))
+
+uintptr_t findSig(const char* szSignature) {
+	const char* pattern = szSignature;
+	uintptr_t firstMatch = 0;
+	static const uintptr_t rangeStart = (uintptr_t)GetModuleHandleA("Minecraft.Windows.exe");
+	static MODULEINFO miModInfo;
+	static bool init = false;
+	if (!init) {
+		init = true;
+		GetModuleInformation(GetCurrentProcess(), (HMODULE)rangeStart, &miModInfo, sizeof(MODULEINFO));
+	}
+	static const uintptr_t rangeEnd = rangeStart + miModInfo.SizeOfImage;
+
+	BYTE patByte = GET_BYTE(pattern);
+	const char* oldPat = pattern;
+
+	for (uintptr_t pCur = rangeStart; pCur < rangeEnd; pCur++) {
+		if (!*pattern)
+			return firstMatch;
+
+		while (*(PBYTE)pattern == ' ')
+			pattern++;
+
+		if (!*pattern)
+			return firstMatch;
+
+		if (oldPat != pattern) {
+			oldPat = pattern;
+			if (*(PBYTE)pattern != '\?')
+				patByte = GET_BYTE(pattern);
+		}
+
+		if (*(PBYTE)pattern == '\?' || *(BYTE*)pCur == patByte) {
+			if (!firstMatch)
+				firstMatch = pCur;
+
+			if (!pattern[2] || !pattern[1])
+				return firstMatch;
+
+			pattern += 2;
+		}
+		else {
+			pattern = szSignature;
+			firstMatch = 0;
+		}
+	}
+}
+
+class GameMode {
+public:
+	void* player;
+
+private:
+	virtual ~GameMode();
+};
+
+void** getVtable(void* obj) {
+	return *((void***)obj);
+}
+
+void(*oGameMode_tick)(GameMode*);
+void hGameMode_tick(GameMode* gm) {
+	using setSprinting = void(__thiscall*)(void*, bool);
+	auto _setSprinting = (setSprinting)(getVtable(gm->player)[277]);
+
+	if (gm->player != nullptr) {
+		_setSprinting(gm->player, true);
+	}
+
+    oGameMode_tick(gm);
 }
 
 void Inject(HINSTANCE hModule) {
-    uintptr_t baseAddr = (uintptr_t)GetModuleHandleW(L"Minecraft.Windows.exe");
-    uintptr_t addr = FindDMAAddy(baseAddr + 0x0365A6D8, { 0x10, 0x128, 0x0, 0xE8, 0xC });
+    MH_Initialize();
 
-    while (true) {
-        *(INT*)(addr) = 16777473;
-        Sleep(5);
+    uintptr_t sigAddr = findSig("48 8D 05 ? ? ? ? 48 8B D9 48 89 01 8B FA 48 8B 89 ? ? ? ? 48 85 C9 74 0A 48 8B 01 BA ? ? ? ? FF 10 48 8B 8B ? ? ? ?");
+    
+    if (!sigAddr)
+        return;
+
+	int offset = *reinterpret_cast<int*>(sigAddr + 3);
+	uintptr_t** gamemodeVtable = reinterpret_cast<uintptr_t**>(sigAddr + offset + 7);
+
+    if (MH_CreateHook((void*)gamemodeVtable[10], &hGameMode_tick, (LPVOID*)&oGameMode_tick) == MH_OK) {
+        MH_EnableHook((void*)gamemodeVtable[10]);
     }
 }
 
