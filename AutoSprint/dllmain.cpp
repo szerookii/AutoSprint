@@ -61,7 +61,6 @@ uintptr_t findSig(const char* szSignature) {
 class GameMode {
 public:
 	void* player;
-
 private:
 	virtual ~GameMode();
 };
@@ -72,8 +71,8 @@ void** getVtable(void* obj) {
 
 void(*oGameMode_tick)(GameMode*);
 void hGameMode_tick(GameMode* gm) {
-	using setSprinting = void(__thiscall*)(void*, bool);
-	auto _setSprinting = (setSprinting)(getVtable(gm->player)[277]);
+	using setSprinting = void(*)(void*, bool);
+	auto _setSprinting = (setSprinting)(getVtable(gm->player)[281]);
 
 	if (gm->player != nullptr) {
 		_setSprinting(gm->player, true);
@@ -85,16 +84,16 @@ void hGameMode_tick(GameMode* gm) {
 void Inject(HINSTANCE hModule) {
     MH_Initialize();
 
-    uintptr_t sigAddr = findSig("48 8D 05 ? ? ? ? 48 8B D9 48 89 01 8B FA 48 8B 89 ? ? ? ? 48 85 C9 74 0A 48 8B 01 BA ? ? ? ? FF 10 48 8B 8B ? ? ? ?");
+    uintptr_t sigAddr = findSig("48 8D 05 ? ? ? ? 48 8B D9 48 89 01 8B FA 48 8B 89 ? ? ? ? 48 85 C9 74 ? 48 8B 01 BA ? ? ? ? FF 10 48 8B 8B");
     
     if (!sigAddr)
         return;
 
 	int offset = *(int*)(sigAddr + 3);
-	uintptr_t** gamemodeVtable = (uintptr_t**)(sigAddr + offset + 7);
+	uintptr_t** vtable = (uintptr_t**)(sigAddr + offset + 7);
 
-    if (MH_CreateHook((void*)gamemodeVtable[10], &hGameMode_tick, (LPVOID*)&oGameMode_tick) == MH_OK) {
-        MH_EnableHook((void*)gamemodeVtable[10]);
+    if (MH_CreateHook((void*)vtable[8], &hGameMode_tick, (LPVOID*)&oGameMode_tick) == MH_OK) {
+        MH_EnableHook((void*)vtable[8]);
     }
 }
 
