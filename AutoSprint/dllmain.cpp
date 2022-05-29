@@ -3,7 +3,13 @@
 #include <Windows.h>
 #include <Psapi.h>
 #include <cassert>
+#include <string>
 #include <vector>
+#include <filesystem>
+#include <fstream>
+#include <sstream>
+
+#pragma warning(disable : 4996)
 
 #include "lib/MinHook.h"
 
@@ -69,10 +75,16 @@ void** getVtable(void* obj) {
 	return *((void***)obj);
 }
 
+uintptr_t setSprintingAddr = NULL;
 void(*oGameMode_tick)(GameMode*);
 void hGameMode_tick(GameMode* gm) {
 	using setSprinting = void(*)(void*, bool);
-	auto _setSprinting = (setSprinting)(getVtable(gm->player)[281]);
+	//auto _setSprinting = (setSprinting)(getVtable(gm->player)[281]);
+	
+	if(setSprintingAddr == NULL)
+		setSprintingAddr = findSig("48 89 5C 24 ? 57 48 83 EC ? 48 8B 81 ? ? ? ? 0F B6 DA");
+
+	auto _setSprinting = (setSprinting)(setSprintingAddr);
 
 	if (gm->player != nullptr) {
 		_setSprinting(gm->player, true);
