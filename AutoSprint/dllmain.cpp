@@ -64,9 +64,45 @@ uintptr_t findSig(const char* szSignature) {
 	}
 }
 
+struct Vec3 {
+	union {
+		struct {
+			float x, y, z;
+		};
+		float arr[3];
+	};
+
+	Vec3() { x = y = z = 0; }
+	Vec3(float x, float y, float z) {
+		this->x = x, this->y = y, this->z = z;
+	}
+
+	float magnitudexz() {
+		return sqrtf(x * x + z * z);
+	}
+};
+
+class Player {
+public:
+	Vec3 velocity() {
+		return *(Vec3*)((uintptr_t)(this) + 0x4f0);
+	}
+
+	void setSprinting(bool value) {
+		using setSprinting = void(*)(void*, bool);
+		static uintptr_t setSprintingAddr = NULL;
+
+		if (setSprintingAddr == NULL)
+			setSprintingAddr = findSig("48 89 5C 24 ? 57 48 83 EC ? 48 8B 81 ? ? ? ? 0F B6 DA");
+
+		((setSprinting)setSprintingAddr)(this, value);
+	}
+};
+
 class GameMode {
 public:
-	void* player;
+	Player* player;
+
 private:
 	virtual ~GameMode();
 };
@@ -75,19 +111,12 @@ void** getVtable(void* obj) {
 	return *((void***)obj);
 }
 
-uintptr_t setSprintingAddr = NULL;
 void(*oGameMode_tick)(GameMode*);
 void hGameMode_tick(GameMode* gm) {
-	using setSprinting = void(*)(void*, bool);
-	//auto _setSprinting = (setSprinting)(getVtable(gm->player)[281]);
-	
-	if(setSprintingAddr == NULL)
-		setSprintingAddr = findSig("48 89 5C 24 ? 57 48 83 EC ? 48 8B 81 ? ? ? ? 0F B6 DA");
-
-	auto _setSprinting = (setSprinting)(setSprintingAddr);
-
 	if (gm->player != nullptr) {
-		_setSprinting(gm->player, true);
+		if (gm->player->velocity().magnitudexz() > 0.05f) {
+			gm->player->setSprinting(true);
+		}
 	}
 
     oGameMode_tick(gm);
