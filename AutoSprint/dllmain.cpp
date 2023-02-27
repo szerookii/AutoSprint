@@ -8,10 +8,14 @@
 #include <filesystem>
 #include <fstream>
 #include <sstream>
+#include <Shlobj.h>
 
 #pragma warning(disable : 4996)
 
 #include "lib/MinHook.h"
+
+std::wstring acFolderPath;
+std::wofstream modLog;
 
 #define INRANGE(x,a,b)   (x >= a && x <= b)
 #define GET_BYTE( x )    (GET_BITS(x[0]) << 4 | GET_BITS(x[1]))
@@ -20,13 +24,16 @@
 uintptr_t findSig(const char* szSignature) {
 	const char* pattern = szSignature;
 	uintptr_t firstMatch = 0;
+
 	static const uintptr_t rangeStart = (uintptr_t)GetModuleHandleA("Minecraft.Windows.exe");
 	static MODULEINFO miModInfo;
 	static bool init = false;
+
 	if (!init) {
 		init = true;
 		GetModuleInformation(GetCurrentProcess(), (HMODULE)rangeStart, &miModInfo, sizeof(MODULEINFO));
 	}
+
 	static const uintptr_t rangeEnd = rangeStart + miModInfo.SizeOfImage;
 
 	BYTE patByte = GET_BYTE(pattern);
@@ -84,17 +91,19 @@ struct Vec3 {
 
 class Player {
 public:
-	Vec3 velocity() {
-		return *(Vec3*)((uintptr_t)(this) + 0x4f0);
+	Vec3 position() {
+		return *(Vec3*)((uintptr_t)(this) + 0x7BC);
 	}
 
 	void setSprinting(bool value) {
 		using setSprinting = void(*)(void*, bool);
 		static uintptr_t setSprintingAddr = NULL;
 
-		if (setSprintingAddr == NULL)
-			setSprintingAddr = findSig("48 89 5C 24 ? 57 48 83 EC ? 48 8B 81 ? ? ? ? 0F B6 DA");
-
+		if (setSprintingAddr == NULL) {
+			setSprintingAddr = findSig("48 89 74 24 20 57 48 83 EC 30 48 8B 01 0F B6 F2 BA 03 00 00 00");
+			return;
+		}
+			
 		((setSprinting)setSprintingAddr)(this, value);
 	}
 };
@@ -114,7 +123,7 @@ void** getVtable(void* obj) {
 void(*oGameMode_tick)(GameMode*);
 void hGameMode_tick(GameMode* gm) {
 	if (gm->player != nullptr) {
-		if (gm->player->velocity().magnitudexz() > 0.05f) {
+		if (gm->player->position().magnitudexz() > 0.05f) {
 			gm->player->setSprinting(true);
 		}
 	}
@@ -125,7 +134,14 @@ void hGameMode_tick(GameMode* gm) {
 void Inject(HINSTANCE hModule) {
     MH_Initialize();
 
-    uintptr_t sigAddr = findSig("48 8D 05 ? ? ? ? 48 8B D9 48 89 01 8B FA 48 8B 89 ? ? ? ? 48 85 C9 74 ? 48 8B 01 BA ? ? ? ? FF 10 48 8B 8B");
+	PWSTR pAppDataPath;
+	SHGetKnownFolderPath(FOLDERID_LocalAppData, 0, NULL, &pAppDataPath);
+	acFolderPath = pAppDataPath;
+	CoTaskMemFree(pAppDataPath);
+
+	modLog.open(acFolderPath + L"\\AutoSprint.txt");
+
+    uintptr_t sigAddr = findSig("48 8D ? ? ? ? ? 48 8B D9 48 89 01 48 8B 89 B0 00 00 00 48 85 C9 74 11 48 8B 01 BA 01 00 00 00 48 8B 00 FF 15 ? ? ? ? 48 8B 8B A8 00 00 00 48 85 C9 74 17 48 8B 01 BA 01 00 00 00 48 8B 00 48 83 C4 20 5B 48 FF 25 ? ? ? ? 48 83 C4 20 5B C3 CC CC CC CC CC CC CC 48 89 5C 24 10 48 89 74 24 18 48 89 7C 24 20 55 41 56 41 57 48 8D 6C 24 A0 48 81 EC 60 01 00 00 48 8B ? ? ? ? ? 48 33 C4 48 89 45 50");
     
     if (!sigAddr)
         return;
