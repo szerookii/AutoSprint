@@ -95,7 +95,7 @@ public:
 		return *(Vec3*)((uintptr_t)(this) + 0x7BC);
 	}
 
-	void setSprinting(bool value) {
+	auto setSprinting(bool value) -> void {
 		using setSprinting = void(*)(void*, bool);
 		static uintptr_t setSprintingAddr = NULL;
 
@@ -116,7 +116,7 @@ public:
 	virtual ~GameMode() = delete;
 };
 
-auto getVtable(void* obj) -> void** {
+[[maybe_unused]] auto getVtable(void* obj) -> void** {
 	return *((void***)obj);
 }
 
@@ -149,7 +149,7 @@ auto Inject(HINSTANCE hModule) -> void {
 	int offset = *(int*)(sigAddr + 3);
 	auto** vtable = (uintptr_t**)(sigAddr + offset + 7);
 
-    if (MH_CreateHook((void*)vtable[8], (LPVOID**)&hGameMode_tick, (LPVOID*)&oGameMode_tick) == MH_OK) {
+    if (MH_CreateHook((void*)vtable[8], (void*)&hGameMode_tick, (void**)&oGameMode_tick) == MH_OK) {
         MH_EnableHook((void*)vtable[8]);
     }
 }
