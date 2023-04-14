@@ -84,14 +84,14 @@ struct Vec3 {
 		this->x = x, this->y = y, this->z = z;
 	}
 
-	[[nodiscard]] auto magnitude() const -> float {
+    [[nodiscard]] auto magnitude() const -> float {
 		return sqrtf(x * x + z * z);
 	}
 };
 
 class Player {
 public:
-	auto position() -> Vec3 {
+    [[maybe_unused]] auto position() -> Vec3 {
 		return *(Vec3*)((uintptr_t)(this) + 0x7BC);
 	}
 
@@ -123,9 +123,7 @@ public:
 void(*oGameMode_tick)(GameMode*);
 auto hGameMode_tick(GameMode* gm) -> void {
 	if (gm->player != nullptr) {
-		if (gm->player->position().magnitude() > 0.05f) {
-			gm->player->setSprinting(true);
-		}
+        gm->player->setSprinting(true);
 	}
 
     oGameMode_tick(gm);
