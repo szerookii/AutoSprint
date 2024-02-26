@@ -71,36 +71,18 @@ auto findSig(const char* szSignature) -> uintptr_t {
     return 0;
 }
 
-struct Vec3 {
-    union {
-        struct {
-            float x, y, z;
-        };
-
-        float arr[3]{};
-    };
-
-    Vec3() { x = y = z = 0; }
-
-    [[maybe_unused]] Vec3(float x, float y, float z) {
-        this->x = x, this->y = y, this->z = z;
-    }
-
-    [[nodiscard]] auto magnitude() const -> float { return sqrtf(x * x + z * z); }
-};
+[[maybe_unused]] auto getVtable(void* obj) -> void** {
+    return *((void***) obj);
+}
 
 class Player {
 public:
-    [[maybe_unused]] auto position() -> Vec3 {
-        return *(Vec3*) ((uintptr_t) (this) + 0x7BC); // TODO: Update offset and find it dynamically
-    }
-
     auto setSprinting(bool value) -> void {
         using setSprinting = void(*)(void*, bool);
         static uintptr_t setSprintingAddr = NULL;
 
         if (setSprintingAddr == NULL) {
-            setSprintingAddr = findSig("48 89 74 24 20 57 48 83 EC 30 48 8B 01 0F B6 F2 BA 03 00 00 00");
+            setSprintingAddr = (uintptr_t)getVtable(this)[165];
 
             return;
         }
@@ -114,10 +96,6 @@ public:
     void** vtable{};
     Player* player{};
 };
-
-[[maybe_unused]] auto getVtable(void* obj) -> void** {
-    return *((void***) obj);
-}
 
 void (*oGameMode_tick)(GameMode*);
 
@@ -139,12 +117,7 @@ auto Inject(HINSTANCE hModule) -> void {
 
     modLog.open(acFolderPath + L"\\AutoSprint.txt");
 
-    uintptr_t sigAddr = findSig("48 8D ? ? ? ? ? 48 8B D9 48 89 01 48 8B 89 B0 00 00 00 48 85 C9 74 11 "
-            "48 8B 01 BA 01 00 00 00 48 8B 00 FF 15 ? ? ? ? 48 8B 8B A8 00 00 00 48 "
-            "85 C9 74 17 48 8B 01 BA 01 00 00 00 48 8B 00 48 83 C4 20 5B 48 FF 25 ? "
-            "? ? ? 48 83 C4 20 5B C3 CC CC CC CC CC CC CC 48 89 5C 24 10 48 89 74 24 "
-            "18 48 89 7C 24 20 55 41 56 41 57 48 8D 6C 24 A0 48 81 EC 60 01 00 00 48 "
-            "8B ? ? ? ? ? 48 33 C4 48 89 45 50");
+    uintptr_t sigAddr = findSig("48 8D 05 ? ? ? ? 48 89 01 48 89 51 ? 48 C7 41");
 
     if (!sigAddr)
         return;
